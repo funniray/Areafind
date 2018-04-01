@@ -1,0 +1,21 @@
+name: AreaFinder
+version: ${project.version}
+main: pro.kdray.areafinder.Areafinder
+depend: [WorldEdit]
+authors: [Funniray]
+description: Finds areas for apartments and such
+website: https://www.kdray.pro/
+
+commands:
+  /room:
+    permission: areafinder.room
+    description: Finds a room and sets your WE region to it
+
+permissions:
+  areafinder.*:
+    description: Allows you to use all areafinder commands
+    childern:
+      areafinder.room: op
+  areafinder.room:
+    default: op
+    description: Allows you to use //room
