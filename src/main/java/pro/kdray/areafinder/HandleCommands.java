@@ -30,7 +30,7 @@ public class HandleCommands implements CommandExecutor {
         this.plugin.getServer().getScheduler().runTaskAsynchronously(this.plugin,()->{
             try {
                 Selection selection = utils.find(player);
-                plugin.getServer().getScheduler().runTaskAsynchronously(this.plugin,()->{
+                plugin.getServer().getScheduler().runTask(this.plugin,()->{
                     WEPlugin.setSelection(player,selection);
                     player.sendMessage("Set your selection!");
                 });

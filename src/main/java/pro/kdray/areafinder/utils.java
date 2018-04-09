@@ -30,22 +30,118 @@ public class utils {
         faces = Collections.unmodifiableCollection(tempList);
     }
 
-
     public static Selection find(Player player) throws InvalidRegionException{
-        List<Location> blocks = new ArrayList<>();
-        blocks = loopBlock(getBottom(player.getLocation()).getBlock(), blocks); //Find all blocks above the floor
-        blocks = removeMiddle(blocks); //Find all air blocks that are touching a non air block on at least one side
-        blocks = removeMiddleWalls(blocks); //Remove the blocks between each corner
-        blocks = addInnerCorners(blocks); //Add in blocks to that list that are touching blocks on that list on either the west and north side or east and west (so on and so forth)
-        List<Corner> corners = toCorners(blocks); //Converts the locations to corners
-        corners = removeIrrelevent(corners); //Take those same blocks and remove the ones that have a side block on only the north and south side or east and west these are the corners
-        corners = corners.get(0).orderCorners(corners); //Puts corners in order so it makes a proper polygon
-        int bottom = (int) corners.get(0).getY(); //This should be fine *Knocks on wood*
-        int top = getSmallestHight(corners)+bottom; //Check the distance between all the corners and the ceiling, the lowest value is how tall the region will be
-        return new Polygonal2DSelection(player.getWorld(),locationsToVectors(corners),top,bottom); //Make the region
+        List<Location> blocks = getCorners(getNorth(getBottom(player.getLocation())));
+        int bottom = (int) blocks.get(0).getY(); //This should be fine *Knocks on wood*
+        int top = getSmallestHight(blocks)+bottom; //Check the distance between all the corners and the ceiling, the lowest value is how tall the region will be
+        return new Polygonal2DSelection(player.getWorld(),locationsToVectors(blocks),top,bottom); //Make the region
     }
 
+    public static List<Location> getCorners(Location start) throws InvalidRegionException {
+        Block working = start.clone().getBlock();
+        BlockFace direction = BlockFace.EAST;
+        List<Location> corners = new ArrayList<>();
+        Location firstCorner = null;
+        boolean firstRun = true;
+        int distance = 0;
 
+        while (true){
+
+            if (nearUnloadedChunk(working.getLocation()))
+                throw new InvalidRegionException();
+
+            BlockFace left = getLeft(direction);
+            Block leftBlock = working.getRelative(left);
+            Block frontBlock = working.getRelative(direction);
+
+            if (isAir(leftBlock.getType()) || !isAir(frontBlock.getType())){
+                corners.add(working.getLocation());
+                if (!firstRun && firstCorner == null){
+                    firstCorner = working.getLocation();
+                }else if(sameLocation(firstCorner,working.getLocation())){
+                    return corners;
+                }
+                if (isAir(leftBlock.getType())) { //If air is to your left, go left
+                    direction = left;
+                    working = leftBlock;
+                }else if (!isAir(frontBlock.getType()) && isAir(working.getRelative(left.getOppositeFace()).getType())) { //else if there's a block in front and there's air to your right, go right
+                    direction = left.getOppositeFace();
+                    working = working.getRelative(direction);
+                }else if (isAir(working.getRelative(direction.getOppositeFace()).getType())){ //Else if there's air behind you, go behind you
+                    direction = direction.getOppositeFace();
+                    working = working.getRelative(direction);
+                }else {
+                    throw new InvalidRegionException();
+                }
+            }else {
+                working = frontBlock;
+            }
+
+            if (working.getType() != Material.AIR){
+                corners.add(working.getLocation());
+                direction = direction.getOppositeFace();
+                working = working.getRelative(direction);
+                if(sameLocation(firstCorner,working.getLocation())){
+                    firstCorner = null;
+                }
+            }
+
+            if (firstRun)
+                firstRun = false;
+
+            if(distance >= 10000) {
+                throw new InvalidRegionException();
+            }else{
+                distance++;
+            }
+
+            if(working.getType() != Material.AIR)
+                throw new InvalidRegionException();
+        }
+    }
+
+    public static boolean isAir(Material type){
+        return type == Material.AIR ||
+                type == Material.ACACIA_DOOR ||
+                type == Material.BIRCH_DOOR ||
+                type == Material.DARK_OAK_DOOR ||
+                type == Material.IRON_DOOR ||
+                type == Material.JUNGLE_DOOR ||
+                type == Material.SPRUCE_DOOR ||
+                type == Material.WOOD_DOOR ||
+                type == Material.WOODEN_DOOR ||
+                type == Material.IRON_DOOR_BLOCK;
+    }
+
+    public static boolean sameLocation(Location location1, Location location2){
+        if (location1 == null || location2 == null){
+            return false;
+        }
+        return location1.getX() == location2.getX() && location1.getY() == location2.getY() && location1.getZ() == location2.getZ();
+    }
+
+    public static BlockFace getLeft(BlockFace origin){
+        switch (origin){
+            case NORTH:
+                return BlockFace.WEST;
+            case WEST:
+                return BlockFace.SOUTH;
+            case SOUTH:
+                return BlockFace.EAST;
+            case EAST:
+                return BlockFace.NORTH;
+            default:
+                return null;
+        }
+    }
+
+    public static Location getNorth(Location start){
+        Location working = start.clone();
+        while (working.getBlock().getType() == Material.AIR && working.getY() != 0){
+            working.add(0,0,-1);
+        }
+        return working.add(0,0,1); //It found the floor, now I have to add one block
+    }
 
     public static Location getBottom(Location start){
         Location working = start.clone();
@@ -59,115 +155,13 @@ public class utils {
         Location working = start.clone();
         if (start.getBlock().getType() != Material.AIR)
             return working.add(0,100,0);
-        while (working.getBlock().getType() == Material.AIR && working.getY() != 256){
+        while ((working.getBlock().getType() == Material.AIR || working.getBlock().getType() == Material.TORCH) && working.getY() != 256){
             working.add(0,1,0);
         }
         return working.add(0,-1,0); //It found the top, now I have to subtract one block
     }
 
-    public static List<BlockVector2D> locationsToVectors(List<Corner> locations){
-        List<BlockVector2D> blocks = new ArrayList<>(locations.size());
-        for (Location block:locations){
-            blocks.add(new BlockVector2D(block.getX(),block.getZ()));
-        }
-        return blocks;
-    }
-
-    private static List<Location> loopBlock(Block block, List<Location> blocks) throws InvalidRegionException{
-        if (block.getType() != Material.AIR
-                && block.getType() != Material.ACACIA_DOOR
-                && block.getType() != Material.BIRCH_DOOR
-                && block.getType() != Material.DARK_OAK_DOOR
-                && block.getType() != Material.JUNGLE_DOOR
-                && block.getType() != Material.SPRUCE_DOOR
-                && block.getType() != Material.WOOD_DOOR
-                && block.getType() != Material.WOODEN_DOOR)
-            return new ArrayList<>();
-        if (blocks.size() > 2000) //Stop if the size is over 2 thousand blocks on the xz axis
-            throw new InvalidRegionException();
-        List<Location> newBlocks = new ArrayList<>();
-        newBlocks.add(block.getLocation());
-        if (block.getType() != Material.AIR)
-            return newBlocks;
-        for(BlockFace face:faces){
-            Location newLocation = getRelative(block.getLocation(),face);
-            if (!isLocationLoaded(newLocation))
-                throw new InvalidRegionException(); //You went too far if it's unloaded. If you reach this normally, please message me I want to see that room.
-            Block newBlock = newLocation.getBlock();
-            List<Location> allLocations = new ArrayList<>();
-            allLocations.addAll(blocks);
-            allLocations.addAll(newBlocks);
-            if (!allLocations.contains(newBlock.getLocation())) {
-                newBlocks.addAll(loopBlock(newBlock, allLocations));
-            }
-        }
-        return newBlocks;
-    }
-
-    private static List<Location> removeMiddle(List<Location> blocks){
-        List<Location> wallBlocks = new ArrayList<>();
-        for(Location block:blocks){
-            boolean hasSide = false;
-            Block block1 = block.getBlock();
-            for(BlockFace face:faces){
-                Block newBlock = block1.getRelative(face);
-                if (newBlock.getType() != Material.AIR) {
-                    hasSide = true;
-                    break;
-                }
-            }
-            if (hasSide){
-                wallBlocks.add(block);
-            }
-        }
-        return wallBlocks;
-    }
-
-    private static List<Location> addInnerCorners(Collection<Location> blocks) {
-        List<Location> cornerBlocks = new ArrayList<>();
-        cornerBlocks.addAll(blocks);
-        for(Location tempblock:blocks){
-            for (Location block:getSurrondingBlocks(tempblock)) {
-                if (cornerBlocks.contains(block))
-                    continue;
-                Location northBlock = getRelative(block,BlockFace.NORTH);
-                Location southBlock = getRelative(block,BlockFace.SOUTH);
-                Location eastBlock = getRelative(block,BlockFace.EAST);
-                Location westBlock = getRelative(block,BlockFace.WEST);
-                boolean north = blocks.contains(northBlock);
-                boolean south = blocks.contains(southBlock);
-                boolean east = blocks.contains(eastBlock);
-                boolean west = blocks.contains(westBlock);
-                if (((north && east) && !(south || west))) {
-                    cornerBlocks.add(block);
-                } else if (((north && west) && !(south || east))) {
-                    cornerBlocks.add(block);
-                } else if (((south && west) && !(north || east))) {
-                    cornerBlocks.add(block);
-                } else if (((south && east) && !(north || west))) {
-                    cornerBlocks.add(block);
-                }
-            }
-        }
-        return cornerBlocks;
-    }
-
-    private static List<Location> removeMiddleWalls(List<Location> blocks) {
-        List<Location> cornerBlocks = new ArrayList<>();
-        for(Location block:blocks){
-            Block block1 = block.getBlock();
-            boolean north = blocks.contains(block1.getRelative(BlockFace.NORTH).getLocation());
-            boolean south = blocks.contains(block1.getRelative(BlockFace.SOUTH).getLocation());
-            boolean east = blocks.contains(block1.getRelative(BlockFace.EAST).getLocation());
-            boolean west = blocks.contains(block1.getRelative(BlockFace.WEST).getLocation());
-            if ((!((north&&south)&&!(east||west))&&(!((east&&west)&&!(north||south))))){
-                cornerBlocks.add(block);
-            }
-        }
-        return cornerBlocks;
-    }
-
-    private static int getSmallestHight(List<Corner> blocks) {
+    private static int getSmallestHight(List<Location> blocks) {
         double lowestHight = 256;
         for (Location block:blocks){
             Location top = getTop(block);
@@ -179,16 +173,12 @@ public class utils {
         return (int) lowestHight;
     }
 
-    private static List<Location> getSurrondingBlocks(Location tempblock) {
-        List<Location> locations = new ArrayList<>();
-        Block block = tempblock.getBlock();
-        for(BlockFace face:faces) {
-            Block newBlock = block.getRelative(face);
-            if (newBlock.getType() == Material.AIR) {
-                locations.add(newBlock.getLocation());
-            }
+    private static List<BlockVector2D> locationsToVectors(List<Location> blocks){
+        List<BlockVector2D> vectors = new ArrayList<>();
+        for (Location location:blocks){
+            vectors.add(new BlockVector2D(location.getX(),location.getZ()));
         }
-        return locations;
+        return vectors;
     }
 
     public static Location getRelative(Location location, BlockFace face){
@@ -210,26 +200,16 @@ public class utils {
         return working;
     }
 
+    private static boolean nearUnloadedChunk(Location location){
+        for (BlockFace face:faces){
+            if (!isLocationLoaded(getRelative(location,face)))
+                return true;
+        }
+        return false;
+    }
+
     private static boolean isLocationLoaded(Location location){
         World world = location.getWorld();
         return world.isChunkLoaded((int) location.getX() >> 4,(int) location.getZ() >> 4); //Byte shifting magic by @SupremeMortal#7120
-    }
-
-    private static List<Corner> toCorners(List<Location> locations){
-        List<Corner> corners = new ArrayList<>();
-        for(Location location:locations){
-            corners.add(new Corner(location));
-        }
-        return corners;
-    }
-
-    private static List<Corner> removeIrrelevent(List<Corner> corners){
-        List<Corner> newCorners = new ArrayList<>();
-        for(Corner corner:corners){
-            if (corner.isRelevent(corners)){
-                newCorners.add(corner);
-            }
-        }
-        return newCorners;
     }
 }
