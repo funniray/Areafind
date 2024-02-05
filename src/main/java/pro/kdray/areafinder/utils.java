@@ -1,8 +1,8 @@
 package pro.kdray.areafinder;
 
-import com.sk89q.worldedit.BlockVector2D;
-import com.sk89q.worldedit.bukkit.selections.Polygonal2DSelection;
-import com.sk89q.worldedit.bukkit.selections.Selection;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector2;
+import com.sk89q.worldedit.regions.selector.Polygonal2DRegionSelector;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -30,11 +30,11 @@ public class utils {
         faces = Collections.unmodifiableCollection(tempList);
     }
 
-    public static Selection find(Player player) throws InvalidRegionException{
+    public static Polygonal2DRegionSelector find(Player player) throws InvalidRegionException{
         List<Location> blocks = getCorners(getNorth(getBottom(player.getLocation())));
         int bottom = (int) blocks.get(0).getY(); //This should be fine *Knocks on wood*
         int top = getSmallestHight(blocks)+bottom; //Check the distance between all the corners and the ceiling, the lowest value is how tall the region will be
-        return new Polygonal2DSelection(player.getWorld(),locationsToVectors(blocks),top,bottom); //Make the region
+        return new Polygonal2DRegionSelector(BukkitAdapter.adapt(player.getWorld()),locationsToVectors(blocks),top,bottom); //Make the region
     }
 
     public static List<Location> getCorners(Location start) throws InvalidRegionException {
@@ -101,16 +101,7 @@ public class utils {
     }
 
     public static boolean isAir(Material type){
-        return type == Material.AIR ||
-                type == Material.ACACIA_DOOR ||
-                type == Material.BIRCH_DOOR ||
-                type == Material.DARK_OAK_DOOR ||
-                type == Material.IRON_DOOR ||
-                type == Material.JUNGLE_DOOR ||
-                type == Material.SPRUCE_DOOR ||
-                type == Material.WOOD_DOOR ||
-                type == Material.WOODEN_DOOR ||
-                type == Material.IRON_DOOR_BLOCK;
+        return type == Material.AIR;
     }
 
     public static boolean sameLocation(Location location1, Location location2){
@@ -173,10 +164,10 @@ public class utils {
         return (int) lowestHight;
     }
 
-    private static List<BlockVector2D> locationsToVectors(List<Location> blocks){
-        List<BlockVector2D> vectors = new ArrayList<>();
+    private static List<BlockVector2> locationsToVectors(List<Location> blocks){
+        List<BlockVector2> vectors = new ArrayList<>();
         for (Location location:blocks){
-            vectors.add(new BlockVector2D(location.getX(),location.getZ()));
+            vectors.add(BlockVector2.at(location.getX(),location.getZ()));
         }
         return vectors;
     }

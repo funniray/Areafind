@@ -5,6 +5,7 @@ depend: [WorldEdit]
 authors: [Funniray]
 description: Finds areas for apartments and such
 website: https://www.kdray.pro/
+api-version: 1.13
 
 commands:
   /room:

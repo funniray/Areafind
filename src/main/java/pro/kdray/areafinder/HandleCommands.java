@@ -1,7 +1,11 @@
 package pro.kdray.areafinder;
 
+import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
-import com.sk89q.worldedit.bukkit.selections.Selection;
+import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.regions.RegionSelector;
+import com.sk89q.worldedit.regions.selector.Polygonal2DRegionSelector;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -29,9 +33,11 @@ public class HandleCommands implements CommandExecutor {
         Player player = (Player) sender;
         this.plugin.getServer().getScheduler().runTaskAsynchronously(this.plugin,()->{
             try {
-                Selection selection = utils.find(player);
+                RegionSelector selection = utils.find(player);
                 plugin.getServer().getScheduler().runTask(this.plugin,()->{
-                    WEPlugin.setSelection(player,selection);
+                    com.sk89q.worldedit.entity.Player actor = BukkitAdapter.adapt(player);
+                    LocalSession session = WEPlugin.getSession(player);
+                    session.setRegionSelector(BukkitAdapter.adapt(player.getWorld()), selection);
                     player.sendMessage("Set your selection!");
                 });
             } catch (InvalidRegionException e1) {
